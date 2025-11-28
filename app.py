@@ -331,15 +331,31 @@ def frame_grabber():
     camera_config = config['cameras'][0]
     source = camera_config['source']
     
-    print(f"[INFO] Opening camera: {source}")
+    print(f"[INFO] Opening camera source: {source}")
     cap = cv2.VideoCapture(source)
     
+    # RENDER FIX: If camera fails, create dummy frames
     if not cap.isOpened():
-        print(f"[ERROR] Failed to open camera")
+        print("[WARN] ⚠️ Camera not available (expected on cloud deployment)")
+        print("[INFO] Creating dummy video feed for cloud deployment")
+        
+        # Generate a placeholder frame
+        while True:
+            dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            cv2.putText(dummy_frame, "Camera Not Available", (150, 240),
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            cv2.putText(dummy_frame, "Deploy locally with USB camera", (120, 280),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1)
+            
+            with frame_lock:
+                latest_frame = dummy_frame.copy()
+            
+            time.sleep(0.1)
         return
     
-    print(f"[INFO] ✅ Camera opened")
+    print(f"[INFO] ✅ Camera opened successfully")
     
+    # Original camera loop
     while True:
         ret, frame = cap.read()
         if ret:
@@ -350,7 +366,9 @@ def frame_grabber():
             time.sleep(0.1)
             cap.release()
             cap = cv2.VideoCapture(source)
+        
         time.sleep(0.01)
+
 
 def detection_loop():
     global total_entry_events, total_exit_events, total_unauthorized_events
@@ -801,4 +819,5 @@ if __name__ == '__main__':
     
     port = int(os.environ.get('PORT', 5000))
     print(f"[INFO] Starting Flask server on port {port}")
+
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
