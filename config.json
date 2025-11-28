@@ -1,0 +1,25 @@
+{
+  "cameras": [
+    {
+      "id": 0,
+      "type": "demo",
+      "source": "https://www.pexels.com/download/video/3044127/"
+    }
+  ],
+  "zones": [
+    {
+      "name": "Zone1",
+      "points": [[100, 100], [540, 100], [540, 380], [100, 380]]
+    }
+  ],
+  "reid_threshold": 0.60,
+  "reid_model": "osnet_x1_0",
+  "reid_crop_strategy": "full_body",
+  "entry_debounce_frames": 8,
+  "exit_debounce_frames": 12,
+  "zone_margin_px": 20,
+  "enrollment_blur_threshold": 30,
+  "enrollment_min_height": 80,
+  "enrollment_min_width": 40,
+  "enrollment_require_face": false
+}
