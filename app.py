@@ -1,6 +1,24 @@
 import ultralytics_patch
 import os
 os.environ['TORCH_LOAD_WEIGHTS_ONLY'] = 'false'
+
+import sys
+CLOUD_DEPLOYMENT = not os.path.exists('/dev/video0')  
+
+# Download YOLO model if missing
+if not os.path.exists('yolov8n.pt'):
+    print("[INFO] Downloading YOLOv8 model...")
+    import urllib.request
+    try:
+        urllib.request.urlretrieve(
+            'https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt',
+            'yolov8n.pt'
+        )
+        print("[INFO] ✅ YOLOv8 downloaded")
+    except Exception as e:
+        print(f"[ERROR] Download failed: {e}")
+        sys.exit(1)
+        
 import cv2
 import json
 import threading
@@ -821,3 +839,4 @@ if __name__ == '__main__':
     print(f"[INFO] Starting Flask server on port {port}")
 
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
+
