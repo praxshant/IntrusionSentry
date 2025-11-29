@@ -1,17 +1,16 @@
 Flask==2.3.3
 gunicorn==20.1.0
-
-# Core utilities
-numpy==1.26.4
-opencv-python-headless==4.8.1.78
-Pillow==10.0.0
-sqlalchemy==2.0.23
-scikit-learn==1.3.2
-
-# Face recognition (includes dlib; may still be heavy)
-face_recognition
-
-# Downloading weights from Google Drive
+torch==2.6.0+cu124
+torchaudio==2.6.0+cu124
+torchvision==0.21.0+cu124
+ultralytics==8.0.196
+opencv-python-headless==4.10.0.84
+numpy==2.1.2
+SQLAlchemy==2.0.23
+torchreid==0.2.5
+scikit-learn==1.5.2
+Pillow==11.0.0
+face-recognition==1.3.0
+requests==2.32.5
+Werkzeug==3.1.3
 gdown
-
-
