@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./screenshots:/app/screenshots
+      - ./database.db:/app/database.db
+      - ./config.json:/app/config.json
+    environment:
+      - MODE=${MODE:-server}
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - PORT=5000
+    # USB camera passthrough (Linux/WSL only)
+    # Uncomment on Linux systems with USB cameras
+    # devices:
+    #   - /dev/video0:/dev/video0
+    restart: unless-stopped
+    networks:
+      - intrusionsentry
+
+  # Optional: Cloudflare Tunnel for remote access
+  # Uncomment and configure if you want secure remote access
+  # tunnel:
+  #   image: cloudflare/cloudflared:latest
+  #   command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+  #   depends_on:
+  #     - app
+  #   restart: unless-stopped
+  #   networks:
+  #     - intrusionsentry
+
+networks:
+  intrusionsentry:
+    driver: bridge
+
+volumes:
+  screenshots:
+  database:

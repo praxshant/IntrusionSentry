@@ -1,0 +1,751 @@
+<<<<<<< HEAD
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IntrusionSentry Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    .person-card {
+      background: #252b3e;
+      border: 2px solid #2c3347;
+      border-radius: 10px;
+      padding: 15px;
+      min-width: 150px;
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .person-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0, 180, 216, 0.3); }
+    .person-card.active { border-color: #00b4d8; }
+    .person-card img { width: 120px; height: 120px; border-radius: 8px; object-fit: cover; margin-bottom: 10px; background: #1a1f2c; }
+    .person-card .slot-label { color: #00b4d8; font-weight: 600; font-size: 0.9rem; margin-bottom: 5px; }
+    .person-card .person-name { color: #e0e0e0; font-size: 1.1rem; font-weight: 500; }
+    .person-card .empty-slot { color: #6c757d; font-style: italic; }
+  </style>
+</head>
+<body>
+
+  <header class="dashboard-header">
+    <div class="logo-container">
+      <i class="fas fa-shield-alt logo-icon"></i>
+      <h1 class="logo-text">Intrusion<span>Sentry</span></h1>
+    </div>
+    <p class="tagline">Real-time Security Monitoring System</p>
+    <div class="header-actions">
+      <span id="action-toast" style="display:none" class="toast">Done</span>
+    </div>
+  </header>
+
+  <div id="alert"><i class="fas fa-exclamation-triangle"></i> New Intrusion Detected!</div>
+  
+  <div class="dashboard-container">
+    <div class="video-container">
+      <h2><i class="fas fa-video"></i> Live CCTV Feed</h2>
+      <img id="video-feed" src="/video_feed" alt="Live CCTV Feed">
+      <p class="video-note"><i class="fas fa-info-circle"></i> Green polygon indicates the monitored zone</p>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px; margin: 20px 0;">
+      <button id="clearUnauth" class="btn" style="background: #ffc107; color: #000;">
+        <i class="fas fa-eraser"></i> Clear Unauthorized Only
+      </button>
+      <button onclick="clearAllData()" class="btn" style="background: #dc3545;">
+        🗑️ Clear All Data
+      </button>
+      <button onclick="showRemovePersonDialog()" class="btn" style="background: #ffc107; color: #000;">
+        ❌ Remove Person
+      </button>
+    </div>
+
+    <div class="controls-panel">
+      <h2>👥 Enrollment & Settings</h2>
+      
+      <div class="control-row">
+        <input type="text" id="enrollName" class="input" placeholder="Enter person name" />
+        <select id="enrollSlot" class="input">
+          <option value="1">Slot 1</option>
+          <option value="2">Slot 2</option>
+          <option value="3">Slot 3</option>
+          <option value="4">Slot 4</option>
+          <option value="5">Slot 5</option>
+        </select>
+        <button onclick="enrollPerson()" class="btn">Capture & Enroll</button>
+      </div>
+
+      <div class="control-row">
+        <label>Number of persons to monitor:</label>
+        <select id="slotsCount" class="input">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+        <button onclick="setActiveSlots()" class="btn">Apply</button>
+      </div>
+
+      <p class="tip">💡 Tip: Stand in the zone and click "Capture" to enroll each person.</p>
+    </div>
+
+    <div class="controls-panel" style="margin-top: 20px;">
+      <h2>👤 Enrolled Persons</h2>
+      <div id="enrolledPersonsContainer" style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px;"></div>
+    </div>
+
+    <div class="stats-panel">
+      <div class="stat-card">
+        <i class="fas fa-user-shield"></i>
+        <h3>Entry Events</h3>
+        <p id="entry-count">0</p>
+      </div>
+      <div class="stat-card">
+        <i class="fas fa-sign-out-alt"></i>
+        <h3>Exit Events</h3>
+        <p id="exit-count">0</p>
+      </div>
+      <div class="stat-card">
+        <i class="fas fa-user-slash"></i>
+        <h3>Unauthorized Events</h3>
+        <p id="unauth-count">0</p>
+      </div>
+    </div>
+    
+    <div class="events-container">
+      <h2><i class="fas fa-history"></i> Recent Events</h2>
+      <table id="events-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Timestamp</th>
+            <th>Event Type</th>
+            <th>Zone</th>
+            <th>Person Slot</th>
+            <th>Person Label</th>
+            <th>Screenshot</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="dashboard-footer">
+    <p>&copy; 2023 IntrusionSentry | Powered by YOLOv8 & Flask</p>
+  </footer>
+
+  <script>
+    // Global events loader (accessible everywhere)
+    let lastEventCount = 0;
+
+    function loadEvents() {
+      $.ajax({
+        url: "/events",
+        type: "GET",
+        dataType: "json",
+        success: function(data) {
+          const tableBody = $('#events-table tbody');
+          tableBody.empty();
+
+          if (Array.isArray(data) && data.length > lastEventCount && lastEventCount > 0) {
+            $('#alert').fadeIn().delay(5000).fadeOut();
+          }
+          lastEventCount = Array.isArray(data) ? data.length : 0;
+
+          let entryCount = 0;
+          let exitCount = 0;
+          let unauthCount = 0;
+
+          (Array.isArray(data) ? data : []).forEach(event => {
+            if (event.event_type === 'entry') entryCount++;
+            else if (event.event_type === 'exit') exitCount++;
+            else if (event.event_type === 'unauthorized') unauthCount++;
+
+            const row = `<tr class="${event.event_type}-event">
+              <td>${event.id}</td>
+              <td>${new Date(event.timestamp).toLocaleString()}</td>
+              <td><span class="event-badge ${event.event_type}">${event.event_type}</span></td>
+              <td>${event.zone_name}</td>
+              <td>${event.person_slot ?? '-'}</td>
+              <td>${event.person_label ?? '-'}</td>
+              <td><a href="/${event.screenshot_path}" target="_blank"><img src="/${event.screenshot_path}" alt="Event Screenshot" class="event-thumbnail"></a></td>
+            </tr>`;
+            tableBody.prepend(row);
+          });
+
+          $('#entry-count').text(entryCount);
+          $('#exit-count').text(exitCount);
+          $('#unauth-count').text(unauthCount);
+        },
+        error: function(xhr, status, error) {
+          console.error("Failed to load events:", error);
+        }
+      });
+    }
+
+    $(document).ready(function() {
+
+      function toast(msg) {
+        const $t = $('#action-toast');
+        $t.text(msg).fadeIn(150).delay(1200).fadeOut(300);
+      }
+
+      loadEvents();
+      setInterval(loadEvents, 5000);
+    });
+
+    function enrollPerson() {
+      const name = document.getElementById('enrollName').value.trim();
+      const slot = parseInt(document.getElementById('enrollSlot').value);
+      
+      if (!name) {
+        alert('Please enter a name');
+        return;
+      }
+      
+      fetch('/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot: slot, label: name })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert(`✅ Enrolled ${data.label} in Slot ${data.slot}`);
+          document.getElementById('enrollName').value = '';
+          updateEnrolledPersons();
+        } else {
+          alert(`❌ Enrollment failed: ${data.error}`);
+        }
+      })
+      .catch(err => alert(`❌ Error: ${err}`));
+    }
+
+    function setActiveSlots() {
+      const count = parseInt(document.getElementById('slotsCount').value);
+      
+      fetch('/set_slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slots: count })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert(`✅ Now monitoring ${data.active_slots} person(s)`);
+          updateEnrolledPersons();
+        }
+      })
+      .catch(err => alert(`❌ Error: ${err}`));
+    }
+
+    function updateEnrolledPersons() {
+      fetch('/enrolled_persons')
+        .then(res => res.json())
+        .then(data => {
+          const container = document.getElementById('enrolledPersonsContainer');
+          if (!container) return;
+          container.innerHTML = '';
+          const activeSlots = data.active_slots;
+          for (let i = 1; i <= 5; i++) {
+            const slotData = (Array.isArray(data.slots) ? data.slots : []).find(s => s.slot === i);
+            const isActive = i <= activeSlots;
+            const card = document.createElement('div');
+            card.className = 'person-card' + (isActive ? ' active' : '');
+            if (slotData && slotData.enrolled && slotData.label) {
+              card.innerHTML = `
+                <div class="slot-label">Slot ${i}</div>
+                <img src="/enrollment_photo/${i}" alt="${slotData.label}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27120%27 height=%27120%27%3E%3Crect fill=%271a1f2c%27 width=%27120%27 height=%27120%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%27 text-anchor=%27middle%27 dy=%27.3em%27 fill=%276c757d%27 font-size=%2716%27%3E${slotData.label ? slotData.label.charAt(0).toUpperCase() : '?'}%3C/text%3E%3C/svg%3E'">
+                <div class="person-name">${slotData.label}</div>
+              `;
+            } else {
+              card.innerHTML = `
+                <div class="slot-label">Slot ${i}</div>
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect fill='%231a1f2c' width='120' height='120'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%236c757d' font-size='40'%3E?%3C/text%3E%3C/svg%3E" alt="Empty">
+                <div class="empty-slot">Not Enrolled</div>
+              `;
+            }
+            container.appendChild(card);
+          }
+        })
+        .catch(err => console.error('Error loading enrolled persons:', err));
+    }
+    setInterval(updateEnrolledPersons, 3000);
+    updateEnrolledPersons();
+
+    // Clear unauthorized alerts only
+    document.getElementById('clearUnauth').addEventListener('click', function() {
+      if (confirm('Clear all unauthorized alerts? (Entry/Exit events will be kept)')) {
+        fetch('/clear_unauthorized', { method: 'POST' })
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+              alert(`✅ Cleared ${data.cleared} unauthorized alerts`);
+              loadEvents();
+            }
+          })
+          .catch(err => alert('❌ Error: ' + err));
+      }
+    });
+
+    function clearAllData() {
+      if (!confirm('⚠️ This will delete ALL events and screenshots. Continue?')) return;
+      fetch('/reset', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            alert('✅ All data cleared successfully');
+            updateEnrolledPersons();
+          }
+        })
+        .catch(err => alert('❌ Error: ' + err));
+    }
+
+    function showRemovePersonDialog() {
+      const modal = document.getElementById('removePersonModal');
+      const select = document.getElementById('removeSlotSelect');
+      fetch('/enrolled_persons')
+        .then(res => res.json())
+        .then(data => {
+          select.innerHTML = '<option value="">-- Select a person --</option>';
+          (Array.isArray(data.slots) ? data.slots : []).forEach(s => {
+            if (s.enrolled && s.label && s.slot >= 1 && s.slot <= 5) {
+              const option = document.createElement('option');
+              option.value = s.slot;
+              option.textContent = `Slot ${s.slot}: ${s.label}`;
+              select.appendChild(option);
+            }
+          });
+          modal.style.display = 'flex';
+        })
+        .catch(err => alert('❌ Error loading persons: ' + err));
+    }
+
+    function closeRemovePersonDialog() {
+      document.getElementById('removePersonModal').style.display = 'none';
+    }
+
+    function confirmRemovePerson() {
+      const slot = parseInt(document.getElementById('removeSlotSelect').value);
+      if (!slot) {
+        alert('Please select a person to remove');
+        return;
+      }
+      if (!confirm(`⚠️ Remove person from Slot ${slot}?`)) return;
+      fetch('/remove_person', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert(`✅ Person removed from Slot ${slot}`);
+          closeRemovePersonDialog();
+          updateEnrolledPersons();
+        } else {
+          alert(`❌ Error: ${data.error}`);
+        }
+      })
+      .catch(err => alert('❌ Error: ' + err));
+    }
+  </script>
+
+  <div id="removePersonModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: #1a1f2c; padding: 30px; border-radius: 15px; min-width: 400px; border: 2px solid #2c3347;">
+      <h2 style="color: #e0e0e0; margin-top: 0;">Remove Enrolled Person</h2>
+      <div style="margin: 20px 0;">
+        <label style="color: #e0e0e0; display: block; margin-bottom: 10px;">Select person to remove:</label>
+        <select id="removeSlotSelect" class="input" style="width: 100%;"></select>
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button onclick="closeRemovePersonDialog()" class="btn" style="background: #6c757d;">Cancel</button>
+        <button onclick="confirmRemovePerson()" class="btn" style="background: #dc3545;">Remove</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IntrusionSentry Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    .person-card {
+      background: #252b3e;
+      border: 2px solid #2c3347;
+      border-radius: 10px;
+      padding: 15px;
+      min-width: 150px;
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .person-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0, 180, 216, 0.3); }
+    .person-card.active { border-color: #00b4d8; }
+    .person-card img { width: 120px; height: 120px; border-radius: 8px; object-fit: cover; margin-bottom: 10px; background: #1a1f2c; }
+    .person-card .slot-label { color: #00b4d8; font-weight: 600; font-size: 0.9rem; margin-bottom: 5px; }
+    .person-card .person-name { color: #e0e0e0; font-size: 1.1rem; font-weight: 500; }
+    .person-card .empty-slot { color: #6c757d; font-style: italic; }
+  </style>
+</head>
+<body>
+
+  <header class="dashboard-header">
+    <div class="logo-container">
+      <i class="fas fa-shield-alt logo-icon"></i>
+      <h1 class="logo-text">Intrusion<span>Sentry</span></h1>
+    </div>
+    <p class="tagline">Real-time Security Monitoring System</p>
+    <div class="header-actions">
+      <span id="action-toast" style="display:none" class="toast">Done</span>
+    </div>
+  </header>
+
+  <div id="alert"><i class="fas fa-exclamation-triangle"></i> New Intrusion Detected!</div>
+  
+  <div class="dashboard-container">
+    <div class="video-container">
+      <h2><i class="fas fa-video"></i> Live CCTV Feed</h2>
+      <img id="video-feed" src="/video_feed" alt="Live CCTV Feed">
+      <p class="video-note"><i class="fas fa-info-circle"></i> Green polygon indicates the monitored zone</p>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px; margin: 20px 0;">
+      <button id="clearUnauth" class="btn" style="background: #ffc107; color: #000;">
+        <i class="fas fa-eraser"></i> Clear Unauthorized Only
+      </button>
+      <button onclick="clearAllData()" class="btn" style="background: #dc3545;">
+        🗑️ Clear All Data
+      </button>
+      <button onclick="showRemovePersonDialog()" class="btn" style="background: #ffc107; color: #000;">
+        ❌ Remove Person
+      </button>
+    </div>
+
+    <div class="controls-panel">
+      <h2>👥 Enrollment & Settings</h2>
+      
+      <div class="control-row">
+        <input type="text" id="enrollName" class="input" placeholder="Enter person name" />
+        <select id="enrollSlot" class="input">
+          <option value="1">Slot 1</option>
+          <option value="2">Slot 2</option>
+          <option value="3">Slot 3</option>
+          <option value="4">Slot 4</option>
+          <option value="5">Slot 5</option>
+        </select>
+        <button onclick="enrollPerson()" class="btn">Capture & Enroll</button>
+      </div>
+
+      <div class="control-row">
+        <label>Number of persons to monitor:</label>
+        <select id="slotsCount" class="input">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+        <button onclick="setActiveSlots()" class="btn">Apply</button>
+      </div>
+
+      <p class="tip">💡 Tip: Stand in the zone and click "Capture" to enroll each person.</p>
+    </div>
+
+    <div class="controls-panel" style="margin-top: 20px;">
+      <h2>👤 Enrolled Persons</h2>
+      <div id="enrolledPersonsContainer" style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px;"></div>
+    </div>
+
+    <div class="stats-panel">
+      <div class="stat-card">
+        <i class="fas fa-user-shield"></i>
+        <h3>Entry Events</h3>
+        <p id="entry-count">0</p>
+      </div>
+      <div class="stat-card">
+        <i class="fas fa-sign-out-alt"></i>
+        <h3>Exit Events</h3>
+        <p id="exit-count">0</p>
+      </div>
+      <div class="stat-card">
+        <i class="fas fa-user-slash"></i>
+        <h3>Unauthorized Events</h3>
+        <p id="unauth-count">0</p>
+      </div>
+    </div>
+    
+    <div class="events-container">
+      <h2><i class="fas fa-history"></i> Recent Events</h2>
+      <table id="events-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Timestamp</th>
+            <th>Event Type</th>
+            <th>Zone</th>
+            <th>Person Slot</th>
+            <th>Person Label</th>
+            <th>Screenshot</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="dashboard-footer">
+    <p>&copy; 2023 IntrusionSentry | Powered by YOLOv8 & Flask</p>
+  </footer>
+
+  <script>
+    // Global events loader (accessible everywhere)
+    let lastEventCount = 0;
+
+    function loadEvents() {
+      $.ajax({
+        url: "/events",
+        type: "GET",
+        dataType: "json",
+        success: function(data) {
+          const tableBody = $('#events-table tbody');
+          tableBody.empty();
+
+          if (Array.isArray(data) && data.length > lastEventCount && lastEventCount > 0) {
+            $('#alert').fadeIn().delay(5000).fadeOut();
+          }
+          lastEventCount = Array.isArray(data) ? data.length : 0;
+
+          let entryCount = 0;
+          let exitCount = 0;
+          let unauthCount = 0;
+
+          (Array.isArray(data) ? data : []).forEach(event => {
+            if (event.event_type === 'entry') entryCount++;
+            else if (event.event_type === 'exit') exitCount++;
+            else if (event.event_type === 'unauthorized') unauthCount++;
+
+            const row = `<tr class="${event.event_type}-event">
+              <td>${event.id}</td>
+              <td>${new Date(event.timestamp).toLocaleString()}</td>
+              <td><span class="event-badge ${event.event_type}">${event.event_type}</span></td>
+              <td>${event.zone_name}</td>
+              <td>${event.person_slot ?? '-'}</td>
+              <td>${event.person_label ?? '-'}</td>
+              <td><a href="/${event.screenshot_path}" target="_blank"><img src="/${event.screenshot_path}" alt="Event Screenshot" class="event-thumbnail"></a></td>
+            </tr>`;
+            tableBody.prepend(row);
+          });
+
+          $('#entry-count').text(entryCount);
+          $('#exit-count').text(exitCount);
+          $('#unauth-count').text(unauthCount);
+        },
+        error: function(xhr, status, error) {
+          console.error("Failed to load events:", error);
+        }
+      });
+    }
+
+    $(document).ready(function() {
+
+      function toast(msg) {
+        const $t = $('#action-toast');
+        $t.text(msg).fadeIn(150).delay(1200).fadeOut(300);
+      }
+
+      loadEvents();
+      setInterval(loadEvents, 5000);
+    });
+
+    function enrollPerson() {
+      const name = document.getElementById('enrollName').value.trim();
+      const slot = parseInt(document.getElementById('enrollSlot').value);
+      
+      if (!name) {
+        alert('Please enter a name');
+        return;
+      }
+      
+      fetch('/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot: slot, label: name })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert(`✅ Enrolled ${data.label} in Slot ${data.slot}`);
+          document.getElementById('enrollName').value = '';
+          updateEnrolledPersons();
+        } else {
+          alert(`❌ Enrollment failed: ${data.error}`);
+        }
+      })
+      .catch(err => alert(`❌ Error: ${err}`));
+    }
+
+    function setActiveSlots() {
+      const count = parseInt(document.getElementById('slotsCount').value);
+      
+      fetch('/set_slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slots: count })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert(`✅ Now monitoring ${data.active_slots} person(s)`);
+          updateEnrolledPersons();
+        }
+      })
+      .catch(err => alert(`❌ Error: ${err}`));
+    }
+
+    function updateEnrolledPersons() {
+      fetch('/enrolled_persons')
+        .then(res => res.json())
+        .then(data => {
+          const container = document.getElementById('enrolledPersonsContainer');
+          if (!container) return;
+          container.innerHTML = '';
+          const activeSlots = data.active_slots;
+          for (let i = 1; i <= 5; i++) {
+            const slotData = (Array.isArray(data.slots) ? data.slots : []).find(s => s.slot === i);
+            const isActive = i <= activeSlots;
+            const card = document.createElement('div');
+            card.className = 'person-card' + (isActive ? ' active' : '');
+            if (slotData && slotData.enrolled && slotData.label) {
+              card.innerHTML = `
+                <div class="slot-label">Slot ${i}</div>
+                <img src="/enrollment_photo/${i}" alt="${slotData.label}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27120%27 height=%27120%27%3E%3Crect fill=%271a1f2c%27 width=%27120%27 height=%27120%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%27 text-anchor=%27middle%27 dy=%27.3em%27 fill=%276c757d%27 font-size=%2716%27%3E${slotData.label ? slotData.label.charAt(0).toUpperCase() : '?'}%3C/text%3E%3C/svg%3E'">
+                <div class="person-name">${slotData.label}</div>
+              `;
+            } else {
+              card.innerHTML = `
+                <div class="slot-label">Slot ${i}</div>
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect fill='%231a1f2c' width='120' height='120'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%236c757d' font-size='40'%3E?%3C/text%3E%3C/svg%3E" alt="Empty">
+                <div class="empty-slot">Not Enrolled</div>
+              `;
+            }
+            container.appendChild(card);
+          }
+        })
+        .catch(err => console.error('Error loading enrolled persons:', err));
+    }
+    setInterval(updateEnrolledPersons, 3000);
+    updateEnrolledPersons();
+
+    // Clear unauthorized alerts only
+    document.getElementById('clearUnauth').addEventListener('click', function() {
+      if (confirm('Clear all unauthorized alerts? (Entry/Exit events will be kept)')) {
+        fetch('/clear_unauthorized', { method: 'POST' })
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+              alert(`✅ Cleared ${data.cleared} unauthorized alerts`);
+              loadEvents();
+            }
+          })
+          .catch(err => alert('❌ Error: ' + err));
+      }
+    });
+
+    function clearAllData() {
+      if (!confirm('⚠️ This will delete ALL events and screenshots. Continue?')) return;
+      fetch('/reset', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            alert('✅ All data cleared successfully');
+            updateEnrolledPersons();
+          }
+        })
+        .catch(err => alert('❌ Error: ' + err));
+    }
+
+    function showRemovePersonDialog() {
+      const modal = document.getElementById('removePersonModal');
+      const select = document.getElementById('removeSlotSelect');
+      fetch('/enrolled_persons')
+        .then(res => res.json())
+        .then(data => {
+          select.innerHTML = '<option value="">-- Select a person --</option>';
+          (Array.isArray(data.slots) ? data.slots : []).forEach(s => {
+            if (s.enrolled && s.label && s.slot >= 1 && s.slot <= 5) {
+              const option = document.createElement('option');
+              option.value = s.slot;
+              option.textContent = `Slot ${s.slot}: ${s.label}`;
+              select.appendChild(option);
+            }
+          });
+          modal.style.display = 'flex';
+        })
+        .catch(err => alert('❌ Error loading persons: ' + err));
+    }
+
+    function closeRemovePersonDialog() {
+      document.getElementById('removePersonModal').style.display = 'none';
+    }
+
+    function confirmRemovePerson() {
+      const slot = parseInt(document.getElementById('removeSlotSelect').value);
+      if (!slot) {
+        alert('Please select a person to remove');
+        return;
+      }
+      if (!confirm(`⚠️ Remove person from Slot ${slot}?`)) return;
+      fetch('/remove_person', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert(`✅ Person removed from Slot ${slot}`);
+          closeRemovePersonDialog();
+          updateEnrolledPersons();
+        } else {
+          alert(`❌ Error: ${data.error}`);
+        }
+      })
+      .catch(err => alert('❌ Error: ' + err));
+    }
+  </script>
+
+  <div id="removePersonModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: #1a1f2c; padding: 30px; border-radius: 15px; min-width: 400px; border: 2px solid #2c3347;">
+      <h2 style="color: #e0e0e0; margin-top: 0;">Remove Enrolled Person</h2>
+      <div style="margin: 20px 0;">
+        <label style="color: #e0e0e0; display: block; margin-bottom: 10px;">Select person to remove:</label>
+        <select id="removeSlotSelect" class="input" style="width: 100%;"></select>
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button onclick="closeRemovePersonDialog()" class="btn" style="background: #6c757d;">Cancel</button>
+        <button onclick="confirmRemovePerson()" class="btn" style="background: #dc3545;">Remove</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
+>>>>>>> 3b85ec0 ( v2.0 - Major Update: Exit Detection, Browser Mode, Action Buttons)

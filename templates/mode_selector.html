@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IntrusionSentry - Select Mode</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="dashboard-header">
+        <div class="logo-container">
+            <i class="fas fa-shield-alt logo-icon"></i>
+            <h1 class="logo-text">Intrusion<span>Sentry</span></h1>
+        </div>
+        <p class="tagline">Enterprise & Personal Security Solutions</p>
+    </header>
+
+    <div class="dashboard-container">
+        <div class="mode-selector">
+            <!-- Server Mode Card -->
+            <div class="mode-card" onclick="selectMode('server')">
+                <div class="mode-icon">🏢</div>
+                <h2 class="mode-title">Server Mode</h2>
+                <p class="mode-description">
+                    Enterprise CCTV monitoring with advanced AI-powered person tracking
+                </p>
+                <ul class="mode-features">
+                    <li>RTSP/IP camera support</li>
+                    <li>Clothing-invariant Re-ID</li>
+                    <li>24/7 monitoring</li>
+                    <li>GPU-accelerated detection</li>
+                    <li>Multi-camera support</li>
+                </ul>
+                <button class="btn" style="width: 100%; margin-top: 20px;" onclick="selectMode('server')">
+                    Enter Server Dashboard
+                </button>
+            </div>
+
+            <!-- Browser Mode Card -->
+            <div class="mode-card" onclick="selectMode('browser')">
+                <div class="mode-icon">👤</div>
+                <h2 class="mode-title">Browser Mode</h2>
+                <p class="mode-description">
+                    Personal webcam monitoring with privacy-first client-side detection
+                </p>
+                <ul class="mode-features">
+                    <li>No installation required</li>
+                    <li>Works on any device</li>
+                    <li>Privacy-focused (local processing)</li>
+                    <li>Instant setup</li>
+                    <li>Free tier available</li>
+                </ul>
+                <button class="btn" style="width: 100%; margin-top: 20px;" onclick="selectMode('browser')">
+                    Launch Browser Monitor
+                </button>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px; color: #adb5bd;">
+            <p>Not sure which mode to choose? <a href="#" style="color: #00b4d8; text-decoration: none;">Compare features</a></p>
+        </div>
+    </div>
+
+    <footer class="dashboard-footer">
+        <p>&copy; 2025 IntrusionSentry | Powered by YOLOv8 & TensorFlow.js</p>
+    </footer>
+
+    <script>
+        function selectMode(mode) {
+            if (mode === 'server') {
+                window.location.href = '/server';
+            } else if (mode === 'browser') {
+                window.location.href = '/browser';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IntrusionSentry - Browser Mode</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  
+  <!-- TensorFlow.js and COCO-SSD model -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
+  <script src="{{ url_for('static', filename='js/detection.js') }}"></script>
+</head>
+<body>
+
+  <header class="dashboard-header">
+    <div class="logo-container">
+      <i class="fas fa-shield-alt logo-icon"></i>
+      <h1 class="logo-text">Intrusion<span>Sentry</span></h1>
+    </div>
+    <p class="tagline">
+      <span class="mode-badge">BROWSER MODE</span> Personal Monitoring
+    </p>
+  </header>
+
+  <div id="alert"><i class="fas fa-exclamation-triangle"></i> New Intrusion Detected!</div>
+  
+  <div class="dashboard-container">
+    <!-- Camera permission request -->
+    <div id="camera-setup" class="controls-panel">
+      <h2>📹 Camera Access Required</h2>
+      <p style="color: #adb5bd; margin: 15px 0;">IntrusionSentry needs access to your webcam for person detection.</p>
+      <button id="start-camera-btn" class="btn">Enable Webcam</button>
+      <p id="camera-status" style="color: #adb5bd; margin-top: 15px;"></p>
+    </div>
+
+    <!-- Live webcam feed with canvas overlay -->
+    <div class="video-container" style="display:none;" id="video-section">
+      <h2><i class="fas fa-video"></i> Live Webcam Feed</h2>
+      <div style="position: relative; display: inline-block;">
+        <video id="webcam" autoplay playsinline style="display:none;"></video>
+        <canvas id="canvas" style="border: 3px solid #00b4d8; border-radius: 10px;"></canvas>
+      </div>
+      <div class="detection-status" id="detection-status">
+        <span class="status-indicator"></span>
+        <span>Detection Active</span>
+      </div>
+      <p class="video-note"><i class="fas fa-info-circle"></i> Green dashed outline = monitored zone. Stand inside to enroll.</p>
+    </div>
+
+    <!-- Enrollment controls -->
+    <div class="controls-panel" id="enrollment-panel" style="display:none;">
+      <h2>👥 Enrollment & Settings</h2>
+      
+      <div class="control-row">
+        <input type="text" id="enrollName" class="input" placeholder="Enter person name" />
+        <select id="enrollSlot" class="input">
+          <option value="1">Slot 1</option>
+          <option value="2">Slot 2</option>
+          <option value="3">Slot 3</option>
+          <option value="4">Slot 4</option>
+          <option value="5">Slot 5</option>
+        </select>
+        <button onclick="enrollPerson()" class="btn">Capture & Enroll</button>
+      </div>
+
+      <div class="control-row">
+        <label>Number of persons to monitor:</label>
+        <select id="slotsCount" class="input">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+        <button onclick="setActiveSlots()" class="btn">Apply</button>
+      </div>
+
+      <p class="tip">💡 Tip: Stand in the zone and click "Capture" to enroll each person.</p>
+    </div>
+
+    <!-- Action Buttons Panel -->
+    <div class="controls-panel" style="margin-top: 20px; display:none;" id="action-buttons-panel">
+      <h2>🔧 Actions</h2>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px;">
+        <!-- Remove Person -->
+        <div>
+          <label style="color: #adb5bd; font-size: 0.9rem; display: block; margin-bottom: 8px;">Remove Person:</label>
+          <select id="removeSlot" class="input" style="margin-bottom: 10px;">
+            <option value="1">Slot 1</option>
+            <option value="2">Slot 2</option>
+            <option value="3">Slot 3</option>
+            <option value="4">Slot 4</option>
+            <option value="5">Slot 5</option>
+          </select>
+          <button onclick="removePerson()" class="btn" style="background: #e53935; width: 100%;">
+            <i class="fas fa-user-times"></i> Remove Person
+          </button>
+        </div>
+        
+        <!-- Clear Unauthorized -->
+        <div style="display: flex; flex-direction: column; justify-content: flex-end;">
+          <button onclick="clearUnauthorized()" class="btn" style="background: #f57c00; width: 100%;">
+            <i class="fas fa-eraser"></i> Clear Unauthorized
+          </button>
+        </div>
+        
+        <!-- Reset All Data -->
+        <div style="display: flex; flex-direction: column; justify-content: flex-end;">
+          <button onclick="resetAllData()" class="btn" style="background: #d32f2f; width: 100%;">
+            <i class="fas fa-trash-alt"></i> Reset All Data
+          </button>
+        </div>
+        
+        <!-- Refresh Dashboard -->
+        <div style="display: flex; flex-direction: column; justify-content: flex-end;">
+          <button onclick="refreshDashboard()" class="btn" style="background: #00897b; width: 100%;">
+            <i class="fas fa-sync-alt"></i> Refresh Dashboard
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls-panel" style="margin-top: 20px; display:none;" id="enrolled-panel">
+      <h2>👤 Enrolled Persons</h2>
+      <div id="enrolledPersonsContainer" style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px;"></div>
+    </div>
+
+    <!-- Dashboard stats -->
+    <div class="stats-panel" style="display:none;" id="stats-panel">
+      <div class="stat-card">
+        <i class="fas fa-user-shield"></i>
+        <h3>Entry Events</h3>
+        <p id="entry-count">0</p>
+      </div>
+      <div class="stat-card">
+        <i class="fas fa-sign-out-alt"></i>
+        <h3>Exit Events</h3>
+        <p id="exit-count">0</p>
+      </div>
+      <div class="stat-card">
+        <i class="fas fa-user-slash"></i>
+        <h3>Unauthorized Events</h3>
+        <p id="unauth-count">0</p>
+      </div>
+    </div>
+    
+    <!-- Events table -->
+    <div class="events-container" style="display:none;" id="events-container">
+      <h2><i class="fas fa-history"></i> Recent Events</h2>
+      <table id="events-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Timestamp</th>
+            <th>Event Type</th>
+            <th>Zone</th>
+            <th>Person Slot</th>
+            <th>Person Label</th>
+            <th>Screenshot</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="dashboard-footer">
+    <p>&copy; 2025 IntrusionSentry | Browser Mode - Powered by TensorFlow.js</p>
+  </footer>
+
+  <script>
+    // Initialize detection utilities from detection.js
+    let zoneManager = null;
+    let personTracker = null;
+    let apiClient = null;
+    let drawer = null;
+    
+    let videoElement = document.getElementById('webcam');
+    let canvasElement = document.getElementById('canvas');
+    let ctx = canvasElement.getContext('2d');
+    let cocoModel = null;
+    let detectionActive = false;
+    let zonePoints = [[100, 100], [540, 100], [540, 380], [100, 380]];
+    let enableReidMatching = true;
+    let lastUnauthTime = 0;
+
+    // Camera setup button handler
+    document.getElementById('start-camera-btn').addEventListener('click', async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 640, height: 480, facingMode: 'user' }
+        });
+        
+        videoElement.srcObject = stream;
+        videoElement.onloadedmetadata = () => {
+          canvasElement.width = videoElement.videoWidth;
+          canvasElement.height = videoElement.videoHeight;
+          
+          document.getElementById('camera-setup').style.display = 'none';
+          document.getElementById('video-section').style.display = 'block';
+          document.getElementById('enrollment-panel').style.display = 'block';
+          document.getElementById('action-buttons-panel').style.display = 'block';
+          document.getElementById('enrolled-panel').style.display = 'block';
+          document.getElementById('stats-panel').style.display = 'flex';
+          document.getElementById('events-container').style.display = 'block';
+          
+          loadConfigAndModel();
+        };
+      } catch (error) {
+        console.error('Camera access error:', error);
+        document.getElementById('camera-status').innerText = 
+          '❌ Camera access denied. Please allow camera permissions.';
+        document.getElementById('camera-status').style.color = '#e53935';
+      }
+    });
+
+    // Load configuration and model
+    async function loadConfigAndModel() {
+      document.getElementById('camera-status').innerText = 'Loading AI detection model...';
+      
+      try {
+        // Initialize detection utilities
+        apiClient = new APIClient();
+        zoneManager = new ZoneManager(zonePoints);
+        personTracker = new PersonTracker(8, 12);
+        drawer = new CanvasDrawer(ctx);
+        
+        // Fetch zone config from server
+        const statusData = await apiClient.getStatus();
+        console.log('Server status:', statusData);
+        
+        // Load COCO-SSD model
+        cocoModel = await cocoSsd.load();
+        
+        document.getElementById('camera-status').innerText = '✅ AI model loaded. Detection active.';
+        document.getElementById('camera-status').style.color = '#4caf50';
+        detectionActive = true;
+        
+        // Start detection loop
+        detectFrame();
+      } catch (error) {
+        console.error('Model loading error:', error);
+        document.getElementById('camera-status').innerText = '❌ Model loading failed: ' + error.message;
+        document.getElementById('camera-status').style.color = '#e53935';
+      }
+    }
+
+    // Main detection loop - FIXED FOR EXIT DETECTION
+    async function detectFrame() {
+      if (!detectionActive) return;
+      
+      // Draw video frame to canvas
+      ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+      
+      // Draw zone polygon (dashed outline for clarity)
+      if (zoneManager && zonePoints.length > 0) {
+        drawer.drawZone(zonePoints, '#00ff00', 2, true);
+      }
+      
+      // Run COCO-SSD detection
+      const predictions = await cocoModel.detect(canvasElement);
+      const persons = predictions.filter(p => p.class === 'person' && p.score > 0.6);
+      
+      // Track which slots were detected in this frame
+      const detectedSlots = new Set();
+      
+      // Process each detected person
+      for (const person of persons) {
+        const [x, y, w, h] = person.bbox;
+        const box = [x, y, x + w, y + h];
+        
+        if (zoneManager && zoneManager.isBoxInZone(box)) {
+          // Person in zone - draw green box
+          drawer.drawBox(box, '#00ff00', 3);
+          
+          // Send to server for Re-ID matching
+          if (enableReidMatching) {
+            try {
+              const imageData = canvasElement.toDataURL('image/jpeg', 0.8);
+              const match = await apiClient.matchFrame(imageData, box);
+              
+              if (match && match.slot && (match.score >= 0.50)) {
+                // Known person - mark as detected
+                detectedSlots.add(match.slot);
+                drawer.drawLabel(`${match.label} (${(match.score * 100).toFixed(0)}%)`, box[0], box[1]);
+                
+                // Update tracker with presence
+                const eventType = personTracker.updateSlot(match.slot, true);
+                if (eventType === 'entry') {
+                  await handleEvent('entry', match.slot, match.label, imageData);
+                }
+              } else {
+                // Unauthorized person
+                drawer.drawBox(box, '#ff0000', 3);
+                drawer.drawLabel('UNAUTHORIZED', box[0], box[1], '#ff0000');
+                await handleUnauthorized(imageData);
+              }
+            } catch (error) {
+              console.error('Re-ID matching error:', error);
+            }
+          }
+        } else {
+          // Person outside zone - draw yellow box
+          drawer.drawBox(box, '#ffff00', 2);
+        }
+      }
+      
+      // Update tracker for enrolled slots not detected this frame (exit detection)
+      try {
+        const enrolledData = await fetch('/enrolled_persons').then(r => r.json());
+        const enrolledSlots = (Array.isArray(enrolledData.slots) ? enrolledData.slots : [])
+          .filter(s => s.enrolled && s.label)
+          .map(s => s.slot);
+        
+        for (const slot of enrolledSlots) {
+          if (!detectedSlots.has(slot)) {
+            const eventType = personTracker.updateSlot(slot, false);
+            if (eventType === 'exit') {
+              const slotData = (Array.isArray(enrolledData.slots) ? enrolledData.slots : []).find(s => s.slot === slot);
+              const label = slotData ? slotData.label : `Person${slot}`;
+              const imageData = canvasElement.toDataURL('image/jpeg', 0.8);
+              await handleEvent('exit', slot, label, imageData);
+              console.log(`[EXIT] Slot ${slot} (${label}) left the zone`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Exit tracking error:', error);
+      }
+      
+      // Continue detection loop at 5 FPS
+      setTimeout(detectFrame, 200);
+    }
+
+    // Handle entry/exit events
+    async function handleEvent(eventType, slot, label, screenshot) {
+      console.log(`[EVENT] ${eventType.toUpperCase()} - ${label}`);
+      
+      // Send event to server
+      await apiClient.reportEvent(eventType, slot, label, screenshot);
+      
+      // Show alert
+      $('#alert').fadeIn().delay(3000).fadeOut();
+      
+      // Refresh events table
+      loadEvents();
+    }
+
+    // Handle unauthorized detection
+    async function handleUnauthorized(screenshot) {
+      const now = Date.now();
+      if (now - lastUnauthTime < 4000) return; // 4 second cooldown
+      
+      lastUnauthTime = now;
+      console.log('[EVENT] UNAUTHORIZED detection');
+      
+      // Send event to server
+      await apiClient.reportEvent('unauthorized', null, 'Unknown', screenshot);
+      
+      // Show alert
+      $('#alert').fadeIn().delay(5000).fadeOut();
+      
+      // Refresh events table
+      loadEvents();
+    }
+
+    // Load events from server
+    function loadEvents() {
+      $.ajax({
+        url: "/events",
+        type: "GET",
+        dataType: "json",
+        success: function(data) {
+          const tableBody = $('#events-table tbody');
+          tableBody.empty();
+
+          let entryCount = 0;
+          let exitCount = 0;
+          let unauthCount = 0;
+
+          (Array.isArray(data) ? data : []).forEach(event => {
+            if (event.event_type === 'entry') entryCount++;
+            else if (event.event_type === 'exit') exitCount++;
+            else if (event.event_type === 'unauthorized') unauthCount++;
+
+            const row = `<tr class="${event.event_type}-event">
+              <td>${event.id}</td>
+              <td>${new Date(event.timestamp).toLocaleString()}</td>
+              <td><span class="event-badge ${event.event_type}">${event.event_type}</span></td>
+              <td>${event.zone_name}</td>
+              <td>${event.person_slot ?? '-'}</td>
+              <td>${event.person_label ?? '-'}</td>
+              <td><a href="/${event.screenshot_path}" target="_blank"><img src="/${event.screenshot_path}" alt="Event Screenshot" class="event-thumbnail"></a></td>
+            </tr>`;
+            tableBody.prepend(row);
+          });
+
+          $('#entry-count').text(entryCount);
+          $('#exit-count').text(exitCount);
+          $('#unauth-count').text(unauthCount);
+        },
+        error: function(xhr, status, error) {
+          console.error("Failed to load events:", error);
+        }
+      });
+    }
+
+    // Enrollment function - FIXED FOR BROWSER MODE
+    function enrollPerson() {
+      const name = document.getElementById('enrollName').value.trim();
+      const slot = parseInt(document.getElementById('enrollSlot').value);
+      
+      if (!name) {
+        alert('Please enter a name');
+        return;
+      }
+      
+      // Check if canvas has valid content
+      if (!canvasElement || canvasElement.width === 0) {
+        alert('❌ Camera not active. Please enable webcam first.');
+        return;
+      }
+      
+      // Capture current canvas frame as base64
+      const frameImage = canvasElement.toDataURL('image/jpeg', 0.95);
+      
+      fetch('/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          slot: slot, 
+          label: name,
+          image: frameImage,  // Send canvas image
+          mode: 'browser'     // Indicate browser mode enrollment
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert(`✅ Enrolled ${data.label} in Slot ${data.slot}`);
+          document.getElementById('enrollName').value = '';
+          updateEnrolledPersons();
+        } else {
+          alert(`❌ Enrollment failed: ${data.error}`);
+        }
+      })
+      .catch(err => alert(`❌ Error: ${err}`));
+    }
+
+    // Remove person from slot
+    function removePerson() {
+      const slot = parseInt(document.getElementById('removeSlot').value);
+      
+      if (!confirm(`Are you sure you want to remove the person from Slot ${slot}?`)) {
+        return;
+      }
+      
+      fetch('/remove_person', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot: slot })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert(`✅ Removed person from Slot ${data.slot}`);
+          updateEnrolledPersons();
+        } else {
+          alert(`❌ Remove failed: ${data.error}`);
+        }
+      })
+      .catch(err => alert(`❌ Error: ${err}`));
+    }
+
+    // Clear unauthorized events only
+    function clearUnauthorized() {
+      if (!confirm('Clear all unauthorized events? (Entry/Exit history will be preserved)')) {
+        return;
+      }
+      
+      fetch('/clear_unauthorized', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert(`✅ Cleared ${data.cleared} unauthorized event(s)`);
+          loadEvents();
+        } else {
+          alert(`❌ Failed to clear events`);
+        }
+      })
+      .catch(err => alert(`❌ Error: ${err}`));
+    }
+
+    // Reset all data (events + screenshots)
+    function resetAllData() {
+      if (!confirm('⚠️ WARNING: This will delete ALL events and screenshots!\n\nEnrolled persons will remain. Continue?')) {
+        return;
+      }
+      
+      fetch('/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert('✅ All event data cleared!');
+          loadEvents();
+        } else {
+          alert('❌ Reset failed');
+        }
+      })
+      .catch(err => alert(`❌ Error: ${err}`));
+    }
+
+    // Refresh dashboard
+    function refreshDashboard() {
+      loadEvents();
+      updateEnrolledPersons();
+      alert('✅ Dashboard refreshed!');
+    }
+
+    function setActiveSlots() {
+      const count = parseInt(document.getElementById('slotsCount').value);
+      
+      fetch('/set_slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slots: count })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert(`✅ Now monitoring ${data.active_slots} person(s)`);
+          updateEnrolledPersons();
+        }
+      })
+      .catch(err => alert(`❌ Error: ${err}`));
+    }
+
+    function updateEnrolledPersons() {
+      fetch('/enrolled_persons')
+        .then(res => res.json())
+        .then(data => {
+          const container = document.getElementById('enrolledPersonsContainer');
+          if (!container) return;
+          container.innerHTML = '';
+          const activeSlots = data.active_slots;
+          for (let i = 1; i <= 5; i++) {
+            const slotData = (Array.isArray(data.slots) ? data.slots : []).find(s => s.slot === i);
+            const isActive = i <= activeSlots;
+            const card = document.createElement('div');
+            card.className = 'person-card' + (isActive ? ' active' : '');
+            card.style.background = '#252b3e';
+            card.style.border = '2px solid ' + (isActive ? '#00b4d8' : '#2c3347');
+            card.style.borderRadius = '10px';
+            card.style.padding = '15px';
+            card.style.minWidth = '150px';
+            card.style.textAlign = '10px';
+            
+            if (slotData && slotData.enrolled && slotData.label) {
+              card.innerHTML = `
+                <div style="color: #00b4d8; font-weight: 600; font-size: 0.9rem; margin-bottom: 5px;">Slot ${i}</div>
+                <img src="/enrollment_photo/${i}" alt="${slotData.label}" style="width: 120px; height: 120px; border-radius: 8px; object-fit: cover; margin-bottom: 10px; background: #1a1f2c;" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27120%27 height=%27120%27%3E%3Crect fill=%271a1f2c%27 width=%27120%27 height=%27120%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%27 text-anchor=%27middle%27 dy=%27.3em%27 fill=%276c757d%27 font-size=%2716%27%3E${slotData.label ? slotData.label.charAt(0).toUpperCase() : '?'}%3C/text%3E%3C/svg%3E'">
+                <div style="color: #e0e0e0; font-size: 1.1rem; font-weight: 500;">${slotData.label}</div>
+              `;
+            } else {
+              card.innerHTML = `
+                <div style="color: #00b4d8; font-weight: 600; font-size: 0.9rem; margin-bottom: 5px;">Slot ${i}</div>
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect fill='%231a1f2c' width='120' height='120'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%236c757d' font-size='40'%3E?%3C/text%3E%3C/svg%3E" alt="Empty" style="width: 120px; height: 120px; border-radius: 8px; object-fit: cover; margin-bottom: 10px; background: #1a1f2c;">
+                <div style="color: #6c757d; font-style: italic;">Not Enrolled</div>
+              `;
+            }
+            container.appendChild(card);
+          }
+        })
+        .catch(err => console.error('Error loading enrolled persons:', err));
+    }
+
+    // Initialize on page load
+    window.onload = () => {
+      loadEvents();
+      setInterval(loadEvents, 5000);
+      setInterval(updateEnrolledPersons, 3000);
+    };
+  </script>
+</body>
+</html>

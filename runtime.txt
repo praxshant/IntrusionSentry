@@ -1,0 +1,5 @@
+<<<<<<< HEAD
+python-3.10.14
+=======
+python-3.10.14
+>>>>>>> 3b85ec0 ( v2.0 - Major Update: Exit Detection, Browser Mode, Action Buttons)
